@@ -25,22 +25,31 @@ Open http://localhost:5173 in your browser.
 
 ```
 statement_analyzer/
+├── .gitignore                # Git ignore rules
 ├── CLAUDE.md                 # This file
 ├── requirements.txt          # Python dependencies
+├── data/                     # SQLite database (gitignored)
+│   └── statements.db        # Persistent storage
 ├── parsers/
 │   ├── __init__.py          # Module exports
 │   ├── base.py              # Abstract StatementParser class & Transaction dataclass
 │   └── itau.py              # ItauParser implementation
 ├── backend/
-│   └── main.py              # FastAPI server
+│   ├── main.py              # FastAPI server
+│   └── database.py          # SQLite database operations
 ├── frontend/
+│   ├── .gitignore           # Frontend-specific ignores
 │   ├── package.json
 │   └── src/
-│       ├── App.tsx          # React app with file upload & results table
+│       ├── App.tsx          # Main app with filters and layout
 │       ├── App.css          # Component styling
-│       └── index.css        # Base styling
+│       ├── types.ts         # TypeScript interfaces
+│       ├── components/
+│       │   └── Charts.tsx   # Recharts visualization components
+│       └── utils/
+│           └── aggregations.ts  # Data aggregation & filtering
 ├── statement_parser.py       # Standalone script (legacy)
-└── venv/                     # Virtual environment
+└── venv/                     # Virtual environment (gitignored)
 ```
 
 ## Architecture
@@ -78,7 +87,11 @@ FastAPI server running on port 8001.
 |--------|------|-------------|
 | GET | `/` | Health check |
 | GET | `/banks` | List supported banks |
-| POST | `/parse` | Parse a statement PDF |
+| GET | `/statements` | List all saved statements |
+| POST | `/statements/upload` | Batch upload PDFs (saves to DB) |
+| POST | `/statements/transactions` | Get transactions for selected statements |
+| DELETE | `/statements/{id}` | Delete a statement |
+| POST | `/parse` | Parse a statement PDF (legacy, doesn't save) |
 
 **POST /parse**
 
@@ -116,11 +129,39 @@ Response:
 
 React + TypeScript + Vite application running on port 5173.
 
-Features:
-- PDF file upload with drag-and-drop
-- Password input for encrypted statements
-- Summary table showing expenses by card
+**Features:**
+- Multi-file batch upload with shared password
+- Persistent storage - statements saved to SQLite database
+- Duplicate detection via file hash
+- Timeline sidebar showing all uploaded statements
+- Select which statements to include in visualization
+- Summary widget showing total expenses with cardholder breakdown
+- Interactive data visualization with Recharts
+- Unified filtering across all charts and transactions table
 - Brazilian currency formatting (R$)
+
+**Charts:**
+- **Expenses by Day** - Line chart showing daily spending
+- **Expenses by Category** - Pie chart (clickable to filter)
+- **Expenses by Business** - Horizontal bar chart with drill-down
+- **Expenses by Location** - Pie chart (clickable to filter)
+- **Expenses by Cardholder** - Bar chart (clickable to filter)
+
+**Business Drill-Down:**
+Clicking a business in the Top 15 chart shows a breakdown by description (the part after `*` in establishment names). For example, clicking "IFD" shows all iFood restaurants. A "Back to Businesses" button returns to the main view.
+
+**Filtering:**
+- Click any chart element to filter all views by that value
+- Search box for establishment names
+- Date range filters (DD/MM format)
+- Active filters displayed with individual remove buttons
+- "Clear all" button to reset filters
+
+**Key Files:**
+- `src/App.tsx` - Main app with state management and layout
+- `src/components/Charts.tsx` - All chart components
+- `src/utils/aggregations.ts` - Data aggregation and filtering functions
+- `src/types.ts` - TypeScript interfaces
 
 ## Implementation Details
 
@@ -274,6 +315,7 @@ python-multipart>=0.0.6  # File upload support
 - React 18
 - TypeScript
 - Vite
+- Recharts (data visualization)
 
 ## Common Issues
 

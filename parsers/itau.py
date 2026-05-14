@@ -26,6 +26,10 @@ class ItauParser(StatementParser):
     BANK_NAME = "Itaú Personnalité"
     SUPPORTED_FORMATS = ["pdf"]
 
+    # Establishments to exclude — payment credits that net out the prior invoice
+    # and would otherwise flip the statement total negative.
+    EXCLUDED_ESTABLISHMENTS = ("PAGAMENTO DEB AUTOMATIC",)
+
     def parse(self, file: BinaryIO, password: str | None = None) -> pd.DataFrame:
         """
         Parse an Itaú statement PDF.
@@ -72,6 +76,14 @@ class ItauParser(StatementParser):
 
         # Remove future installments
         df = self._remove_future_installments(df)
+
+        # Exclude payment credits (e.g. PAGAMENTO DEB AUTOMATIC)
+        if not df.empty and "establishment" in df.columns:
+            upper = df["establishment"].fillna("").str.upper()
+            mask = pd.Series(False, index=df.index)
+            for pattern in self.EXCLUDED_ESTABLISHMENTS:
+                mask |= upper.str.contains(pattern, na=False)
+            df = df[~mask].reset_index(drop=True)
 
         return df
 

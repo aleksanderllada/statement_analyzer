@@ -30,6 +30,11 @@ const CARDHOLDER_COLORS = [
   '#00C49F', '#FFBB28', '#FF8042', '#4ECDC4', '#45B7D1',
 ]
 
+const LABEL_COLORS = [
+  '#6366F1', '#EC4899', '#14B8A6', '#F59E0B', '#8B5CF6',
+  '#EF4444', '#06B6D4', '#84CC16', '#F97316', '#A855F7',
+]
+
 interface ChartProps {
   data: AggregatedData[]
   title: string
@@ -78,7 +83,11 @@ export function ExpensesByDayChart({ data, title }: ChartProps) {
         <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-          <YAxis tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
+          <YAxis
+            tickFormatter={(v) => formatCurrency(v)}
+            domain={[0, 'auto']}
+            allowDecimals={false}
+          />
           <Tooltip content={<CustomTooltip />} />
           <Line
             type="monotone"
@@ -152,7 +161,7 @@ export function ExpensesByBusinessChart({
   drilledBusiness
 }: BusinessChartProps) {
   const isDrilledDown = !!drilledBusiness && !!drillDownData
-  const displayData = isDrilledDown ? drillDownData.slice(0, 15) : data.slice(0, 15)
+  const displayData = isDrilledDown ? drillDownData.slice(0, 25) : data.slice(0, 25)
   const chartTitle = isDrilledDown ? `${drilledBusiness} - Details` : title
 
   const handleBarClick = (barData: AggregatedData) => {
@@ -184,7 +193,7 @@ export function ExpensesByBusinessChart({
         )}
         <h3>{chartTitle}</h3>
       </div>
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={600}>
         <BarChart
           data={displayData}
           layout="vertical"
@@ -274,6 +283,50 @@ export function ExpensesByLocationChart({ data, title, onSelect, selectedValue }
   )
 }
 
+export function ExpensesByLabelChart({ data, title, onSelect, selectedValue }: ChartProps) {
+  const topData = data.slice(0, 10)
+
+  const handleClick = (data: { name: string }) => {
+    if (onSelect && data?.name) {
+      onSelect(selectedValue === data.name ? '' : data.name)
+    }
+  }
+
+  return (
+    <div className="chart-container">
+      <h3>{title}</h3>
+      <ResponsiveContainer width="100%" height={350}>
+        <PieChart>
+          <Pie
+            data={topData}
+            cx="50%"
+            cy="50%"
+            labelLine={false}
+            label={renderPieLabel}
+            outerRadius={100}
+            fill="#6366F1"
+            dataKey="value"
+            nameKey="name"
+            onClick={handleClick}
+            style={{ cursor: onSelect ? 'pointer' : 'default' }}
+          >
+            {topData.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={LABEL_COLORS[index % LABEL_COLORS.length]}
+                opacity={selectedValue && selectedValue !== entry.name ? 0.4 : 1}
+                stroke={selectedValue === entry.name ? '#000' : 'none'}
+                strokeWidth={selectedValue === entry.name ? 2 : 0}
+              />
+            ))}
+          </Pie>
+          <Tooltip content={<CustomTooltip />} />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 export function ExpensesByCardholderChart({ data, title, onSelect, selectedValue }: ChartProps) {
   const handleBarClick = (barData: { name: string }) => {
     if (onSelect && barData?.name) {
@@ -330,6 +383,52 @@ export function ExpensesByCardholderChart({ data, title, onSelect, selectedValue
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  )
+}
+
+export function LabelExpensesTable({ data, title, onSelect, selectedValue }: ChartProps) {
+  if (data.length === 0) {
+    return (
+      <div className="chart-container">
+        <h3>{title}</h3>
+        <p className="no-data">No labels yet</p>
+      </div>
+    )
+  }
+
+  const sorted = [...data].sort((a, b) => b.value - a.value)
+
+  return (
+    <div className="chart-container">
+      <h3>{title}</h3>
+      <div className="label-table-wrapper">
+        <table className="label-table">
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th className="num">Total</th>
+              <th className="num">Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(row => {
+              const selected = selectedValue === row.name
+              return (
+                <tr
+                  key={row.name}
+                  className={selected ? 'selected' : ''}
+                  onClick={() => onSelect?.(selected ? '' : row.name)}
+                >
+                  <td>{row.name}</td>
+                  <td className="num">{formatCurrency(row.value)}</td>
+                  <td className="num">{row.count}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

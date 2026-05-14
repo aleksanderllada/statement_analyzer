@@ -41,6 +41,7 @@ Thumbs.db
 # Project specific
 *.pdf
 *.csv
+data/
 
 # Frontend (also has its own .gitignore)
 frontend/node_modules/

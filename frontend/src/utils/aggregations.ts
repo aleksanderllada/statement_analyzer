@@ -7,12 +7,26 @@ export interface AggregatedData {
   [key: string]: string | number
 }
 
+export interface InstallmentProjection {
+  monthOffset: number // 0 = current, 1 = next month, etc.
+  label: string
+  total: number
+  count: number
+  items: {
+    establishment: string
+    currentInstallment: number
+    totalInstallments: number
+    amount: number
+  }[]
+}
+
 export interface Filters {
   search: string
   cardholder: string
   category: string
   location: string
   business: string
+  label: string
   dateFrom: string
   dateTo: string
 }
@@ -23,6 +37,7 @@ export const emptyFilters: Filters = {
   category: '',
   location: '',
   business: '',
+  label: '',
   dateFrom: '',
   dateTo: '',
 }
@@ -51,6 +66,13 @@ export function extractDescription(establishment: string): string {
     return establishment.split('*').slice(1).join('*').trim()
   }
   return establishment.trim()
+}
+
+/**
+ * Extract business key (lowercased business name) for label matching
+ */
+export function extractBusinessKey(establishment: string): string {
+  return extractBusinessName(establishment).toLowerCase()
 }
 
 /**
@@ -87,15 +109,42 @@ export function filterTransactions(transactions: Transaction[], filters: Filters
     }
 
     // Category filter
-    if (filters.category && t.category !== filters.category) {
-      return false
+    if (filters.category) {
+      // Handle "Sem categoria" filter - match empty/null categories
+      if (filters.category === 'Sem categoria') {
+        if (t.category && t.category.trim() !== '') {
+          return false
+        }
+      } else if (t.category !== filters.category) {
+        return false
+      }
     }
 
     // Location filter (with case normalization)
     if (filters.location) {
-      const normalizedLocation = t.location ? normalizeLocationCase(t.location) : ''
-      if (normalizedLocation !== filters.location) {
-        return false
+      // Handle "Sem localizacao" filter - match empty/null locations
+      if (filters.location === 'Sem localizacao') {
+        if (t.location && t.location.trim() !== '') {
+          return false
+        }
+      } else {
+        const normalizedLocation = t.location ? normalizeLocationCase(t.location) : ''
+        if (normalizedLocation !== filters.location) {
+          return false
+        }
+      }
+    }
+
+    // Label filter
+    if (filters.label) {
+      if (filters.label === 'Sem label') {
+        if (t.labels && t.labels.length > 0) {
+          return false
+        }
+      } else {
+        if (!t.labels || !t.labels.some(l => l.name === filters.label)) {
+          return false
+        }
       }
     }
 
@@ -240,6 +289,37 @@ export function aggregateByCardholder(transactions: Transaction[]): AggregatedDa
 }
 
 /**
+ * Aggregate transactions by label
+ * Transactions with multiple labels contribute to each label's total.
+ * Unlabeled transactions go under "Sem label".
+ */
+export function aggregateByLabel(transactions: Transaction[]): AggregatedData[] {
+  const byLabel = new Map<string, { value: number; count: number }>()
+
+  for (const t of transactions) {
+    if (!t.labels || t.labels.length === 0) {
+      const existing = byLabel.get('Sem label') || { value: 0, count: 0 }
+      byLabel.set('Sem label', {
+        value: existing.value + t.amount,
+        count: existing.count + 1,
+      })
+    } else {
+      for (const label of t.labels) {
+        const existing = byLabel.get(label.name) || { value: 0, count: 0 }
+        byLabel.set(label.name, {
+          value: existing.value + t.amount,
+          count: existing.count + 1,
+        })
+      }
+    }
+  }
+
+  return Array.from(byLabel.entries())
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.value - a.value)
+}
+
+/**
  * Aggregate transactions by description (after *) for a specific business
  * Used for drill-down view when a business is selected
  */
@@ -262,4 +342,80 @@ export function aggregateByDescription(transactions: Transaction[], businessName
   return Array.from(byDescription.entries())
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.value - a.value)
+}
+
+/**
+ * Parse installment string (e.g., "06/12") into current and total
+ */
+function parseInstallment(installment: string): { current: number; total: number } | null {
+  if (!installment || !installment.includes('/')) return null
+  const parts = installment.split('/')
+  if (parts.length !== 2) return null
+  const current = parseInt(parts[0], 10)
+  const total = parseInt(parts[1], 10)
+  if (isNaN(current) || isNaN(total)) return null
+  return { current, total }
+}
+
+/**
+ * Analyze installments and project future payments
+ * Returns projections for current month and upcoming months
+ */
+export function analyzeInstallments(transactions: Transaction[]): InstallmentProjection[] {
+  const monthLabels = [
+    'This month',
+    'Next month',
+    'In 2 months',
+    'In 3 months',
+    'In 4 months',
+    'In 5 months',
+    'In 6 months',
+    'In 7 months',
+    'In 8 months',
+    'In 9 months',
+    'In 10 months',
+    'In 11 months',
+    'In 12 months',
+  ]
+
+  // Map: monthOffset -> items
+  const projectionMap = new Map<number, InstallmentProjection['items']>()
+
+  for (const t of transactions) {
+    const parsed = parseInstallment(t.installment)
+    if (!parsed) continue
+
+    const { current, total } = parsed
+    const remainingPayments = total - current + 1 // Including current month
+
+    // For each remaining payment (including current)
+    for (let i = 0; i < remainingPayments; i++) {
+      const items = projectionMap.get(i) || []
+      items.push({
+        establishment: t.establishment,
+        currentInstallment: current + i,
+        totalInstallments: total,
+        amount: t.amount,
+      })
+      projectionMap.set(i, items)
+    }
+  }
+
+  // Convert to array and calculate totals
+  const projections: InstallmentProjection[] = []
+
+  for (let monthOffset = 0; monthOffset < 13; monthOffset++) {
+    const items = projectionMap.get(monthOffset) || []
+    if (items.length === 0 && monthOffset > 0) continue // Skip empty future months
+
+    projections.push({
+      monthOffset,
+      label: monthLabels[monthOffset] || `In ${monthOffset} months`,
+      total: items.reduce((sum, item) => sum + item.amount, 0),
+      count: items.length,
+      items: items.sort((a, b) => b.amount - a.amount),
+    })
+  }
+
+  return projections
 }
