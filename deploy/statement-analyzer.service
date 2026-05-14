@@ -1,0 +1,23 @@
+[Unit]
+Description=Statement Analyzer FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+User=aarruda
+Group=aarruda
+WorkingDirectory=/home/aarruda/statement_analyzer
+Environment=PATH=/home/aarruda/statement_analyzer/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/aarruda/statement_analyzer/venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8001
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/aarruda/statement_analyzer/data
+
+[Install]
+WantedBy=multi-user.target

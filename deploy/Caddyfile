@@ -1,0 +1,24 @@
+st.aarruda.com {
+	# Cloudflare proxies in front and uses SSL mode "Full" — accept any cert.
+	# Caddy's internal CA gives us a self-signed cert automatically.
+	tls internal
+
+	encode gzip
+
+	# API: strip /api prefix before forwarding to FastAPI on localhost:8001
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:8001
+	}
+
+	# Static frontend (Vite build output). SPA fallback to index.html.
+	handle {
+		root * /home/aarruda/statement_analyzer/frontend/dist
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output file /var/log/caddy/st.aarruda.com.log
+		format console
+	}
+}

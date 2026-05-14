@@ -30,7 +30,7 @@ import { Classifier } from './components/Classifier'
 
 type ViewMode = 'dashboard' | 'classifier'
 
-const API_BASE = 'http://localhost:8001'
+const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',

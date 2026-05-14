@@ -2,7 +2,7 @@ import { useState, useEffect, type MouseEvent } from 'react'
 import type { Transaction, LabelInfo, LabelScope } from '../types'
 import { extractBusinessKey } from '../utils/aggregations'
 
-const API_BASE = 'http://localhost:8001'
+const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
