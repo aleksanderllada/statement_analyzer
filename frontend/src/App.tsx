@@ -342,19 +342,6 @@ function App() {
     }
   }
 
-  const handleCreateLabel = async (name: string) => {
-    try {
-      await fetch(`${API_BASE}/labels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-      await fetchLabels()
-    } catch (err) {
-      console.error('Failed to create label:', err)
-    }
-  }
-
   // Update transaction labels locally instead of refetching everything.
   // This avoids a full network round-trip + re-render of all charts per label change.
   const updateLabelsLocally = (
