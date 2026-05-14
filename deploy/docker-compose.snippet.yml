@@ -1,0 +1,31 @@
+# Snippet showing what to merge into ~/n8n-docker-caddy/docker-compose.yml on
+# the host. This is NOT a standalone compose file — it relies on the
+# preexisting `caddy` service and `caddy_data` external volume from the n8n
+# stack so a single Caddy serves both apps.
+#
+# Two changes are needed:
+#
+# 1) Add a bind mount to the existing `caddy` service so it can serve the
+#    frontend static files and read the CF origin-pull CA:
+#
+#    caddy:
+#      volumes:
+#        - /home/aleksanderarruda/statement_analyzer/frontend/dist:/srv/st.aarruda.com:ro
+#
+#    Also, on hosts running Tailscale Funnel (which binds :443 on the
+#    tailnet IP), restrict Caddy's port publish to the public IP so it
+#    doesn't conflict:
+#
+#      ports:
+#        - "178.156.229.208:80:80"
+#        - "178.156.229.208:443:443"
+#
+# 2) Add the statement_analyzer service alongside `caddy` and `n8n`:
+
+services:
+  statement_analyzer:
+    build: /home/aleksanderarruda/statement_analyzer
+    container_name: statement_analyzer
+    restart: unless-stopped
+    volumes:
+      - /home/aleksanderarruda/statement_analyzer/data:/app/data

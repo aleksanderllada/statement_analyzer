@@ -1,9 +1,22 @@
-# Snippet appended to ~/n8n-docker-caddy/caddy_config/Caddyfile on the host.
-# Cloudflare proxies the public hostname (orange cloud, SSL mode Full), so
-# Caddy uses its internal CA for the origin cert.
+# Snippet merged into ~/n8n-docker-caddy/caddy_config/Caddyfile on the host.
+#
+# Layers in front of the app:
+#   - Cloudflare proxies the hostname (orange cloud, SSL mode Full).
+#   - Cloudflare Access gates every request (email OTP policy).
+#   - Cloudflare Authenticated Origin Pulls: CF presents a client cert from
+#     its origin-pull CA. Caddy below requires it via client_auth, so direct
+#     connections to the origin IP (bypassing CF) fail at the TLS handshake.
+#
+# cloudflare-origin-pull-ca.pem is the public CA cert that signs CF's
+# origin-pull cert; it lives next to this file and is mounted into Caddy.
 
 st.aarruda.com {
-	tls internal
+	tls internal {
+		client_auth {
+			mode require_and_verify
+			trust_pool file /config/cloudflare-origin-pull-ca.pem
+		}
+	}
 
 	encode gzip
 
