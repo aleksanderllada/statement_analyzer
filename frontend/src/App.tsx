@@ -258,11 +258,18 @@ function App() {
       if (target && target.closest('.label-popover, .add-label-btn')) return
       close()
     }
-    window.addEventListener('scroll', close, true)
+    const onScroll = (e: Event) => {
+      // Capture-phase scroll fires for any scroll in the tree; ignore scrolls
+      // inside the popover (e.g., the label list) so they don't dismiss it.
+      const target = e.target as Element | null
+      if (target && 'closest' in target && target.closest('.label-popover')) return
+      close()
+    }
+    window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', close)
     document.addEventListener('mousedown', onMouseDown)
     return () => {
-      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', close)
       document.removeEventListener('mousedown', onMouseDown)
     }
